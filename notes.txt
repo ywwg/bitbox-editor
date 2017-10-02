@@ -10,17 +10,18 @@ ok so things I want to do:
 
 basic blocks:
 
-* python3!
+* (done) python3!
 * a python-prompt-toolkit dispatcher that handles commands
-* a way to play back wav files -- simpleaudio looks fine
-* reading the XML into a convenient object
+* (done) a way to play back wav files -- simpleaudio looks fine
+* (done) reading the XML into a convenient object
  * serializing the XML back out in a way that bitbox can still read
 * operations on the xml:
  * rename file (calls to fs operations to do move, dir create)
  * swap or reorder presets (plz type the new order using existing indexes...)
 * filesystem operation module
 
-so easiest to start with XML reader and wave player
+(done) so easiest to start with XML reader and wave player
+then add dispatcher to interact with those
 then add xml writing
 then add preset reordering
 then add wave file rename
