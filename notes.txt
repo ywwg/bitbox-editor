@@ -1,0 +1,26 @@
+ok so things I want to do:
+
+* rename recorded wav files and move them to a subdir
+* play back those files so I know what they are
+* do it preset by preset
+* reordering presets
+* detect recordings not used by presets and delete them (audio confirmation of course)
+* rewrite XML
+* maybe some standard XML toggles like exclusive mode or auto record, etc?
+
+basic blocks:
+
+* python3!
+* a python-prompt-toolkit dispatcher that handles commands
+* a way to play back wav files -- simpleaudio looks fine
+* reading the XML into a convenient object
+ * serializing the XML back out in a way that bitbox can still read
+* operations on the xml:
+ * rename file (calls to fs operations to do move, dir create)
+ * swap or reorder presets (plz type the new order using existing indexes...)
+* filesystem operation module
+
+so easiest to start with XML reader and wave player
+then add xml writing
+then add preset reordering
+then add wave file rename
