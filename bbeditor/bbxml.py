@@ -43,14 +43,15 @@ class BBXMLRename(BBXML):
     self._output = XMLGenerator(output)
     self._coords = coords
     # BitBox uses windows-style paths
-    self._newname = pathlib.PureWindowsPath(newname)
+    self._newname = pathlib.PureWindowsPath(newname) if newname != '' else ''
 
   def startElement(self, name, attrs):
     super().startElement(name, attrs)
     new_attrs = dict(attrs)
-    if self._cur_track == self._coords['track'] and self._cur_clip == self._coords['clip']:
-      new_attrs['file'] = "0"
-      new_attrs['filename'] = str(self._newname)
+    if name == 'clip':
+      if self._cur_track == self._coords['track'] and self._cur_clip == self._coords['clip']:
+        new_attrs['file'] = "0"
+        new_attrs['filename'] = str(self._newname)
     self._output.startElement(name, new_attrs)
 
   def endElement(self, name):

@@ -47,6 +47,8 @@ class Prompt(object):
       self.handle_play(text)
     elif text.startswith('r'):
       self.handle_rename(text)
+    elif text.startswith('s'):
+      self.handle_swap(text)
     elif text:
       self.help()
       return True
@@ -61,7 +63,8 @@ class Prompt(object):
     print ('  dir  # set which dir the bitbox files are in')
     print ('  c    # choose current preset, 1-16')
     print ('  p    # play a clip for the current preset: X,Y')
-    print ('  r    # rename clip, specify coords and new name (can include subdir')
+    print ('  r    # rename clip, specify coords and new name (can include subdir)')
+    print ('  s    # swap clips, specify two sets of coords: 0,0  1,2')
     print ('  q    # quit')
 
   def handle_dir(self, text):
@@ -122,53 +125,92 @@ class Prompt(object):
       print_error()
       return None
 
-    if not self._handler.get_clip(self._root, self._cur_preset,
-                                  {'track': track_num, 'clip': clip_num}):
-      return None
-
-    return (track_num, clip_num)
+    return {'track': track_num, 'clip': clip_num}
 
   def handle_play(self, text):
     """Parses text and plays the given clip"""
     def print_error():
       print ('Expected coordinates after play command, like: 0,0')
+      print ("If already played a clip, don't need to specify again")
 
     tokens = text.split(' ', 1)
-    if len(tokens) != 2:
+    if len(tokens) == 1:
       # Handle case where it's a bare p command
       if self._cur_clip['track'] is not None:
         self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
         return
+    if len(tokens) != 2:
       print_error()
       return
 
     coords = self._parse_coords(tokens[1])
     if coords is None:
       return
-    track_num, clip_num = coords
-    self._cur_clip['track'] = track_num
-    self._cur_clip['clip'] = clip_num
+    if not self._handler.get_clip(self._root, self._cur_preset, coords):
+      print ('No clip at that position')
+      return
+    self._cur_clip = coords
     self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
 
   def handle_rename(self, text):
     def print_error():
       print ('Expected coordinates and new filename, like: 0,0 foo/bar/baz.wav')
+      print ('Or just a new filename if clip is selectedm like: foo/bar/baz.wav')
 
     tokens = text.split(' ', 2)
-    if len(tokens) != 3:
+    if len(tokens) == 2:
       # if we have a clip selected we can just rename it
       if self._cur_clip['track'] is not None and tokens[1].endswith('.wav'):
-        self._handler.rename_clip(
+        self._handler.move_clip(
             self._root, self._cur_preset, self._cur_clip, tokens[1])
         return
+    elif len(tokens) != 3:
       print_error()
       return
 
     coords = self._parse_coords(tokens[1])
     if coords is None:
       return
-    track_num, clip_num = coords
-    self._cur_clip['track'] = track_num
-    self._cur_clip['clip'] = clip_num
+    if not self._handler.get_clip(self._root, self._cur_preset, coords):
+      print ('No clip at that position')
+      return
+    self._cur_clip['track'] = coords
 
-    self._handler.rename_clip(self._root, self._cur_preset, self._cur_clip, tokens[2])
+    self._handler.move_clip(self._root, self._cur_preset, self._cur_clip, tokens[2])
+
+  def handle_swap(self, text):
+    def print_error():
+      print ('Expected two sets of coordinates, like: 0,0 1,2')
+      print ('Or one set if already selected')
+
+    tokens = text.split(' ', 3)
+    this_clip = {'track': None, 'clip':None, 'filename': ''}
+    other_clip = {'track': None, 'clip':None, 'filename': ''}
+    if len(tokens) == 3:
+      other_clip = self._parse_coords(tokens[2])
+      if other_clip is None:
+        print_error()
+        return
+      this_clip = self._parse_coords(tokens[1])
+      if this_clip is None:
+        print_error()
+        return
+    elif len(tokens) == 2:
+      if self._cur_clip['track'] is None or self._cur_clip['clip'] is None:
+        print_error()
+        return
+
+      this_clip = self._cur_clip
+      other_clip = self._parse_coords(tokens[1])
+
+    this_clip['filename'] = self._handler.get_clip(self._root, self._cur_preset, this_clip)
+    if not this_clip['filename']:
+      this_clip['filename'] = ''
+      self._cur_clip = this_clip
+    other_clip['filename'] = self._handler.get_clip(self._root, self._cur_preset, other_clip)
+    if not other_clip['filename']:
+      other_clip['filename'] = ''
+      self._cur_clip = other_clip
+
+    self._handler.rename_clip(self._root, self._cur_preset, other_clip, this_clip['filename'])
+    self._handler.rename_clip(self._root, self._cur_preset, this_clip, other_clip['filename'])
