@@ -1,7 +1,10 @@
 """prompt.py
 Like, handle all the possible commands and stuff
 """
+import io
 import os.path
+import pathlib
+import shutil
 import xml.sax
 
 import bbeditor.bbxml as bbxml
@@ -45,6 +48,11 @@ class Prompt(object):
 
     if text.startswith('p'):
       self.play_clip(self._cur_preset, text)
+    elif text.startswith('r'):
+      self.rename_clip(self._cur_preset, text)
+    elif text:
+      self.help()
+      return True
 
     self.list_preset(self._cur_preset)
 
@@ -56,6 +64,7 @@ class Prompt(object):
     print ('  dir  # set which dir the bitbox files are in')
     print ('  c    # choose current preset, 1-16')
     print ('  p    # play a clip for the current preset: X,Y')
+    print ('  r    # rename clip, specify coords and new name (can include subdir')
     print ('  q    # quit')
 
   def handle_dir(self, text):
@@ -109,31 +118,33 @@ class Prompt(object):
     clips = xmlfilter.clips()
     for tracknum in range(0, 4):
       for clipnum in range(0, 4):
-        print ('%d,%d: %s' % (tracknum, clipnum, clips[tracknum][clipnum]))
+        print ('\n%d,%d: %s' % (tracknum, clipnum, clips[tracknum][clipnum]))
 
-  def play_clip(self, preset_num, text):
-    """Parses text and plays the given clip"""
-    tokens = text.split(' ', 1)
+  def _parse_coords(self, text):
+    """Parses a comma-separated pair of ints and does valiation.
 
+    Returns: a tuple of two ints, or None on error
+    """
     def print_error():
       print ('Expected coordinates after play command, like: 0,0')
 
-    if len(tokens) != 2:
-      print_error()
-      return
-    coords = tokens[1].split(',')
+    coords = text.split(',')
     if len(coords) != 2:
       print_error()
-      return
+      return None
 
     track_num = int(coords[0])
     if track_num < 0 or track_num > 3:
       print_error()
-      return
+      return None
     clip_num = int(coords[1])
     if clip_num < 0 or clip_num > 3:
       print_error()
-      return
+      return None
+
+    return (track_num, clip_num)
+
+  def _get_clip(self, preset_num, track_num, clip_num):
     parser = xml.sax.make_parser()
     xmlfilter = bbxml.BBXML(parser)
     xmlfilter.parse(self._preset_filename(preset_num))
@@ -142,6 +153,87 @@ class Prompt(object):
     clip_filename = clips[track_num][clip_num]
     if not clip_filename:
       print ('No clip at that position')
+
+    return clip_filename
+
+  def play_clip(self, preset_num, text):
+    """Parses text and plays the given clip"""
+    def print_error():
+      print ('Expected coordinates after play command, like: 0,0')
+
+    tokens = text.split(' ', 1)
+    if len(tokens) != 2:
+      print_error()
+      return
+
+    coords = self._parse_coords(tokens[1])
+    if coords is None:
+      return
+    track_num, clip_num = coords
+
+    clip_filename = self._get_clip(preset_num, track_num, clip_num)
+    if not clip_filename:
       return
 
     self._player.play(self._format_clip_filename(clip_filename))
+
+  def _backup_preset(self, preset_num):
+    """Make a copy of the preset file"""
+    oldpath = os.path.join(self._dir, self._preset_filename(preset_num))
+    newpath = oldpath.replace('.xml', '.bak')
+    shutil.copy(oldpath, newpath)
+
+  def _move_file(self, root, oldname, newname):
+    oldpath = os.path.join(root, oldname.replace('\\','/'))
+    if not os.path.isfile(oldpath):
+      print ('Source file does not exist: %s' % oldpath)
+      return False
+
+
+    newpath = os.path.join(root, newname)
+    if os.path.isfile(newpath):
+      print ('Destination file already exists: %s' % newpath)
+      return False
+
+    if not os.path.isdir(os.path.dirname(newpath)):
+      p = pathlib.Path(os.path.dirname(newpath))
+      try:
+        p.mkdir(parents=True)
+      except Exception as e:
+        print ('Error creating dir for %s: %s' % (newpath, e))
+        return False
+
+    shutil.move(oldpath, newpath)
+    return True
+
+  def rename_clip(self, preset_num, text):
+    def print_error():
+      print ('Expected coordinates and new filename, like: 0,0 foo/bar/baz.wav')
+
+    tokens = text.split(' ', 2)
+    if len(tokens) != 3:
+      print_error()
+      return
+
+    coords = self._parse_coords(tokens[1])
+    if coords is None:
+      return
+    track_num, clip_num = coords
+
+    clip_filename = self._get_clip(preset_num, track_num, clip_num)
+    if not clip_filename:
+      return
+
+    newname = tokens[2].strip()
+
+    self._backup_preset(preset_num)
+    preset_filename = self._preset_filename(preset_num)
+    backup_filename = preset_filename.replace('.xml', '.bak')
+
+    if not self._move_file(self._dir, clip_filename, newname):
+      return
+
+    parser = xml.sax.make_parser()
+    with open(preset_filename, 'w') as out:
+      renamer = bbxml.BBXMLRename(parser, out, track_num, clip_num, newname)
+      renamer.parse(backup_filename)

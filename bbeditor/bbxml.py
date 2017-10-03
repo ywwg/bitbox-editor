@@ -4,8 +4,9 @@ not sure if I want two classes, one just for reading and another for reading and
 """
 
 import copy
+import pathlib
 import xml.sax
-from xml.sax.saxutils import XMLFilterBase
+from xml.sax.saxutils import XMLFilterBase, XMLGenerator
 
 class BBXML(XMLFilterBase):
   def __init__(self, input_xml):
@@ -34,3 +35,28 @@ class BBXML(XMLFilterBase):
   def endElement(self, name):
     if name == 'track':
       self._cur_clip = -1
+
+
+class BBXMLRename(BBXML):
+  def __init__(self, input_xml, output, tracknum, clipnum, newname):
+    super().__init__(input_xml)
+    self._output = XMLGenerator(output)
+    self._tracknum = tracknum
+    self._clipnum = clipnum
+    # BitBox uses windows-style paths
+    self._newname = pathlib.PureWindowsPath(newname)
+
+  def startElement(self, name, attrs):
+    super().startElement(name, attrs)
+    new_attrs = dict(attrs)
+    if self._cur_track == self._tracknum and self._cur_clip == self._clipnum:
+      new_attrs['file'] = "0"
+      new_attrs['filename'] = str(self._newname)
+    self._output.startElement(name, new_attrs)
+
+  def endElement(self, name):
+    super().endElement(name)
+    self._output.endElement(name)
+
+  def characters(self, content):
+    self._output.characters(content)
