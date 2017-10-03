@@ -1,23 +1,20 @@
 """prompt.py
 Like, handle all the possible commands and stuff
 """
-import io
 import os.path
-import pathlib
-import shutil
-import xml.sax
 
-import bbeditor.bbxml as bbxml
-import bbeditor.playback as playback
 from prompt_toolkit import prompt
 from prompt_toolkit.history import FileHistory
 
+import bbeditor.handlers as handlers
+
 class Prompt(object):
   def __init__(self, herstory_file):
-    self._dir = None
-    self._player = playback.Player()
     self._herstory = FileHistory(herstory_file)
+    self._handler = handlers.Handler()
+    self._root = None
     self._cur_preset = None
+    self._cur_clip = {'track': None, 'clip':None}
 
   def do_prompt(self):
     """Returns false if asked to quit."""
@@ -30,31 +27,31 @@ class Prompt(object):
     elif text == 'q':
       return False
     elif text.startswith('dir'):
-      self._dir = self.handle_dir(text)
+      self._root = self.handle_dir(text)
       return True
 
-    if not self._dir:
+    if not self._root:
       print ("Please set 'dir foo/bar' for bitbox directory")
       return True
 
     if text.startswith('c'):
       self._cur_preset = self.choose_preset(text)
-      self.list_preset(self._cur_preset)
+      self._handler.list_preset(self._root, self._cur_preset, self._cur_clip)
       return True
 
     if not self._cur_preset:
-      print ('Please choose a preset with s')
+      print ('Please choose a preset with c')
       return True
 
     if text.startswith('p'):
-      self.play_clip(self._cur_preset, text)
+      self.handle_play(text)
     elif text.startswith('r'):
-      self.rename_clip(self._cur_preset, text)
+      self.handle_rename(text)
     elif text:
       self.help()
       return True
 
-    self.list_preset(self._cur_preset)
+    self._handler.list_preset(self._root, self._cur_preset, self._cur_clip)
 
     return True
 
@@ -74,7 +71,7 @@ class Prompt(object):
     """
     tokens = text.split(' ')
     if len(tokens) == 1:
-      print ('current path: %s' % self._dir)
+      print ('current path: %s' % self._root)
       return None
 
     path = text.split(' ', 1)[1]
@@ -82,13 +79,6 @@ class Prompt(object):
       print ('bad path: %s' % path)
       return None
     return path
-
-  def _preset_filename(self, preset_num):
-    return os.path.join(self._dir, 'SE0000%02d.xml' % preset_num)
-
-  def _format_clip_filename(self, filename):
-    filename = filename.replace('\\','/')
-    return os.path.join(self._dir, filename)
 
   def choose_preset(self, text):
     """Parses text and extracts preset value
@@ -109,16 +99,6 @@ class Prompt(object):
       return None
 
     return preset_num
-
-  def list_preset(self, preset_num):
-    """Lists clips in given preset"""
-    parser = xml.sax.make_parser()
-    xmlfilter = bbxml.BBXML(parser)
-    xmlfilter.parse(self._preset_filename(preset_num))
-    clips = xmlfilter.clips()
-    for tracknum in range(0, 4):
-      for clipnum in range(0, 4):
-        print ('\n%d,%d: %s' % (tracknum, clipnum, clips[tracknum][clipnum]))
 
   def _parse_coords(self, text):
     """Parses a comma-separated pair of ints and does valiation.
@@ -142,27 +122,23 @@ class Prompt(object):
       print_error()
       return None
 
+    if not self._handler.get_clip(self._root, self._cur_preset,
+                                  {'track': track_num, 'clip': clip_num}):
+      return None
+
     return (track_num, clip_num)
 
-  def _get_clip(self, preset_num, track_num, clip_num):
-    parser = xml.sax.make_parser()
-    xmlfilter = bbxml.BBXML(parser)
-    xmlfilter.parse(self._preset_filename(preset_num))
-    clips = xmlfilter.clips()
-
-    clip_filename = clips[track_num][clip_num]
-    if not clip_filename:
-      print ('No clip at that position')
-
-    return clip_filename
-
-  def play_clip(self, preset_num, text):
+  def handle_play(self, text):
     """Parses text and plays the given clip"""
     def print_error():
       print ('Expected coordinates after play command, like: 0,0')
 
     tokens = text.split(' ', 1)
     if len(tokens) != 2:
+      # Handle case where it's a bare p command
+      if self._cur_clip['track'] is not None:
+        self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
+        return
       print_error()
       return
 
@@ -170,48 +146,21 @@ class Prompt(object):
     if coords is None:
       return
     track_num, clip_num = coords
+    self._cur_clip['track'] = track_num
+    self._cur_clip['clip'] = clip_num
+    self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
 
-    clip_filename = self._get_clip(preset_num, track_num, clip_num)
-    if not clip_filename:
-      return
-
-    self._player.play(self._format_clip_filename(clip_filename))
-
-  def _backup_preset(self, preset_num):
-    """Make a copy of the preset file"""
-    oldpath = os.path.join(self._dir, self._preset_filename(preset_num))
-    newpath = oldpath.replace('.xml', '.bak')
-    shutil.copy(oldpath, newpath)
-
-  def _move_file(self, root, oldname, newname):
-    oldpath = os.path.join(root, oldname.replace('\\','/'))
-    if not os.path.isfile(oldpath):
-      print ('Source file does not exist: %s' % oldpath)
-      return False
-
-
-    newpath = os.path.join(root, newname)
-    if os.path.isfile(newpath):
-      print ('Destination file already exists: %s' % newpath)
-      return False
-
-    if not os.path.isdir(os.path.dirname(newpath)):
-      p = pathlib.Path(os.path.dirname(newpath))
-      try:
-        p.mkdir(parents=True)
-      except Exception as e:
-        print ('Error creating dir for %s: %s' % (newpath, e))
-        return False
-
-    shutil.move(oldpath, newpath)
-    return True
-
-  def rename_clip(self, preset_num, text):
+  def handle_rename(self, text):
     def print_error():
       print ('Expected coordinates and new filename, like: 0,0 foo/bar/baz.wav')
 
     tokens = text.split(' ', 2)
     if len(tokens) != 3:
+      # if we have a clip selected we can just rename it
+      if self._cur_clip['track'] is not None and tokens[1].endswith('.wav'):
+        self._handler.rename_clip(
+            self._root, self._cur_preset, self._cur_clip, tokens[1])
+        return
       print_error()
       return
 
@@ -219,21 +168,7 @@ class Prompt(object):
     if coords is None:
       return
     track_num, clip_num = coords
+    self._cur_clip['track'] = track_num
+    self._cur_clip['clip'] = clip_num
 
-    clip_filename = self._get_clip(preset_num, track_num, clip_num)
-    if not clip_filename:
-      return
-
-    newname = tokens[2].strip()
-
-    self._backup_preset(preset_num)
-    preset_filename = self._preset_filename(preset_num)
-    backup_filename = preset_filename.replace('.xml', '.bak')
-
-    if not self._move_file(self._dir, clip_filename, newname):
-      return
-
-    parser = xml.sax.make_parser()
-    with open(preset_filename, 'w') as out:
-      renamer = bbxml.BBXMLRename(parser, out, track_num, clip_num, newname)
-      renamer.parse(backup_filename)
+    self._handler.rename_clip(self._root, self._cur_preset, self._cur_clip, tokens[2])
