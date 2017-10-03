@@ -7,16 +7,18 @@ import xml.sax
 import bbeditor.bbxml as bbxml
 import bbeditor.playback as playback
 from prompt_toolkit import prompt
+from prompt_toolkit.history import FileHistory
 
 class Prompt(object):
-  def __init__(self):
+  def __init__(self, herstory_file):
     self._dir = None
     self._player = playback.Player()
+    self._herstory = FileHistory(herstory_file)
 
   def do_prompt(self):
     """Returns false if asked to quit."""
 
-    text = prompt('(? for help) > ')
+    text = prompt('(? for help) > ', history=self._herstory)
 
     if text == '?':
       self.help()
