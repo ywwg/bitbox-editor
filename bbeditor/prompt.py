@@ -134,7 +134,7 @@ class Prompt(object):
       print ("If already played a clip, don't need to specify again")
 
     tokens = text.split(' ', 1)
-    if len(tokens) == 1:
+    if len(tokens) == 1 or not tokens[1]:
       # Handle case where it's a bare p command
       if self._cur_clip['track'] is not None:
         self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
@@ -174,7 +174,7 @@ class Prompt(object):
     if not self._handler.get_clip(self._root, self._cur_preset, coords):
       print ('No clip at that position')
       return
-    self._cur_clip['track'] = coords
+    self._cur_clip = coords
 
     self._handler.move_clip(self._root, self._cur_preset, self._cur_clip, tokens[2])
 

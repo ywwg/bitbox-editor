@@ -17,10 +17,6 @@ class Handler(object):
   def _preset_filename(self, root, preset_num):
     return os.path.join(root, 'SE0000%02d.xml' % preset_num)
 
-  def _format_clip_filename(self, root, filename):
-    filename = filename.replace('\\','/')
-    return os.path.join(root, filename)
-
   def list_preset(self, root, preset_num, coords):
     """Lists clips in given preset"""
     parser = xml.sax.make_parser()
@@ -53,7 +49,7 @@ class Handler(object):
       print ('No clip at that position')
       return
 
-    self._player.play(self._format_clip_filename(root, clip_filename))
+    self._player.play(self._join_root(root, clip_filename))
 
   def _backup_preset(self, root, preset_num):
     """Make a copy of the preset file"""
@@ -61,16 +57,19 @@ class Handler(object):
     newpath = oldpath.replace('.xml', '.bak')
     shutil.copy(oldpath, newpath)
 
+  def _join_root(self, root, suffix):
+    return os.path.join(root, suffix.replace('\\','/'))
+
   def _file_exists(self, root, suffix):
-    path = os.path.join(root, suffix.replace('\\','/'))
+    path = self._join_root(root, suffix)
     return os.path.isfile(path)
 
   def _move_file(self, root, oldname, newname):
-    if not self._file_exists(root, oldpath):
-      print ('Source file does not exist: %s' % oldpath)
+    if not self._file_exists(root, oldname):
+      print ('Source file does not exist: %s' % oldname)
       return False
 
-    newpath = os.path.join(root, newname)
+    newpath = self._join_root(root, newname)
     if self._file_exists(root, newpath):
       print ('Destination file already exists: %s' % newpath)
       return False
@@ -83,6 +82,7 @@ class Handler(object):
         print ('Error creating dir for %s: %s' % (newpath, e))
         return False
 
+    oldpath = self._join_root(root, oldname)
     shutil.move(oldpath, newpath)
     return True
 
