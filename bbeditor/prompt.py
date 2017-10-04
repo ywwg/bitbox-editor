@@ -1,5 +1,11 @@
 """prompt.py
 Like, handle all the possible commands and stuff
+
+
+TODO: make this all chomp-style parsing.  we first chomp the command,
+Then the command can chomp a set of coords or a filename or whatever.
+Gets tricky with swap which can take one or two sets of coords
+
 """
 import os.path
 
@@ -44,11 +50,23 @@ class Prompt(object):
       return True
 
     if text.startswith('p'):
-      self.handle_play(text)
+      self._cur_clip = self._choose_clip(text)
+      if self._cur_clip is not None:
+        self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
     elif text.startswith('r'):
       self.handle_rename(text)
     elif text.startswith('s'):
       self.handle_swap(text)
+    elif text == 'norm':
+      self._cur_clip = self._choose_clip(text)
+      if self._cur_clip is not None:
+        self._handler.normalize_clip(self._root, self._cur_preset, self._cur_clip)
+    elif text == 'normall':
+      self._handler.normalize_preset(self._root, self._cur_preset)
+    elif text.startswith('undo'):
+      self._cur_clip = self._choose_clip(text)
+      if self._cur_clip is not None:
+        self._handler.undo_clip(self._root, self._cur_preset, self._cur_clip)
     elif text:
       self.help()
       return True
@@ -60,12 +78,14 @@ class Prompt(object):
   def help(self):
     print ('Known commands:')
     print ('')
-    print ('  dir  # set which dir the bitbox files are in')
-    print ('  c    # choose current preset, 1-16')
-    print ('  p    # play a clip for the current preset: X,Y')
-    print ('  r    # rename clip, specify coords and new name (can include subdir)')
-    print ('  s    # swap clips, specify two sets of coords: 0,0  1,2')
-    print ('  q    # quit')
+    print ('  dir     # set which dir the bitbox files are in')
+    print ('  c       # choose current preset, 1-16')
+    print ('  p       # play a clip for the current preset: X,Y')
+    print ('  r       # rename clip, specify coords and new name (can include subdir)')
+    print ('  s       # swap clips, specify two sets of coords: 0,0  1,2')
+    print ('  norm    # Normalize a single clip)
+    print ('  normall # Normalize a whole preset by an equal amount per clip)
+    print ('  q       # quit')
 
   def handle_dir(self, text):
     """Parses out which directory the user specified and returns it.
@@ -127,30 +147,31 @@ class Prompt(object):
 
     return {'track': track_num, 'clip': clip_num}
 
-  def handle_play(self, text):
-    """Parses text and plays the given clip"""
+  def _choose_clip(self, text):
+    """Parses text and figures out which clip was chosen
+
+    Returns None on error
+    """
     def print_error():
-      print ('Expected coordinates after play command, like: 0,0')
-      print ("If already played a clip, don't need to specify again")
+      print ('Expected coordinates after command, like: 0,0')
 
     tokens = text.split(' ', 1)
     if len(tokens) == 1:
       # Handle case where it's a bare p command
       if self._cur_clip['track'] is not None:
-        self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
-        return
+        return self._cur_clip
     if len(tokens) != 2:
       print_error()
-      return
+      return None
 
     coords = self._parse_coords(tokens[1])
     if coords is None:
       return
     if not self._handler.get_clip(self._root, self._cur_preset, coords):
       print ('No clip at that position')
-      return
+      return None
     self._cur_clip = coords
-    self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
+    return coords
 
   def handle_rename(self, text):
     def print_error():

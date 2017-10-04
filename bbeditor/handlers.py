@@ -8,6 +8,7 @@ import shutil
 import xml.sax
 
 import bbeditor.bbxml as bbxml
+import bbeditor.effects as effects
 import bbeditor.playback as playback
 
 class Handler(object):
@@ -18,15 +19,18 @@ class Handler(object):
     return os.path.join(root, 'SE0000%02d.xml' % preset_num)
 
   def _format_clip_filename(self, root, filename):
-    filename = filename.replace('\\','/')
+    filename = filename.replace('\\', '/')
     return os.path.join(root, filename)
 
-  def list_preset(self, root, preset_num, coords):
-    """Lists clips in given preset"""
+  def _get_clips(self, root, preset_num):
     parser = xml.sax.make_parser()
     xmlfilter = bbxml.BBXML(parser)
     xmlfilter.parse(self._preset_filename(root, preset_num))
-    clips = xmlfilter.clips()
+    return xmlfilter.clips()
+
+  def list_preset(self, root, preset_num, coords):
+    """Lists clips in given preset"""
+    clips = self._get_clips(root, preset_num)
     print ('')
     print ('Preset %d:' % preset_num)
     for tracknum in range(0, 4):
@@ -38,11 +42,11 @@ class Handler(object):
         print ('%d,%d: %s' % (tracknum, clipnum, clips[tracknum][clipnum]))
 
   def get_clip(self, root, preset_num, coords):
-    parser = xml.sax.make_parser()
-    xmlfilter = bbxml.BBXML(parser)
-    xmlfilter.parse(self._preset_filename(root, preset_num))
-    clips = xmlfilter.clips()
+    """Gets the encoded clip name, which is a bad windows-style relative path.
 
+    Use _format_clip_filename to get something useful
+    """
+    clips = self._get_clips(root, preset_num)
     clip_filename = clips[coords['track']][coords['clip']]
     return clip_filename
 
@@ -122,3 +126,22 @@ class Handler(object):
     with open(preset_filename, 'w') as out:
       renamer = bbxml.BBXMLRename(parser, out, coords, newname)
       renamer.parse(backup_filename)
+
+  def normalize_clip(self, root, preset_num, coords):
+    clipname = self.get_clip(root, preset_num, coords)
+    if clipname is None:
+      return
+    effector = effects.Effector(self._format_clip_filename(root, clipname))
+    effector.normalize()
+
+  def normalize_preset(self, root, preset_num):
+    clips = self._get_clips(root, preset_num)
+    files = [self._format_clip_filename(root, c) for t in clips for c in t if c != '']
+    effects.normalize_preset(files)
+
+  def undo_clip(self, root, preset_num, coords):
+    clipname = self.get_clip(root, preset_num, coords)
+    if clipname is None:
+      return
+    effector = effects.Effector(self._format_clip_filename(root, clipname))
+    effector.undo()
