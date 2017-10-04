@@ -8,6 +8,7 @@ import shutil
 import xml.sax
 
 import bbeditor.bbxml as bbxml
+import bbeditor.effects as effects
 import bbeditor.playback as playback
 
 class Handler(object):
@@ -17,12 +18,15 @@ class Handler(object):
   def _preset_filename(self, root, preset_num):
     return os.path.join(root, 'SE0000%02d.xml' % preset_num)
 
-  def list_preset(self, root, preset_num, coords):
-    """Lists clips in given preset"""
+  def _get_clips(self, root, preset_num):
     parser = xml.sax.make_parser()
     xmlfilter = bbxml.BBXML(parser)
     xmlfilter.parse(self._preset_filename(root, preset_num))
-    clips = xmlfilter.clips()
+    return xmlfilter.clips()
+
+  def list_preset(self, root, preset_num, coords):
+    """Lists clips in given preset"""
+    clips = self._get_clips(root, preset_num)
     print ('')
     print ('Preset %d:' % preset_num)
     for tracknum in range(0, 4):
@@ -34,11 +38,11 @@ class Handler(object):
         print ('%d,%d: %s' % (tracknum, clipnum, clips[tracknum][clipnum]))
 
   def get_clip(self, root, preset_num, coords):
-    parser = xml.sax.make_parser()
-    xmlfilter = bbxml.BBXML(parser)
-    xmlfilter.parse(self._preset_filename(root, preset_num))
-    clips = xmlfilter.clips()
+    """Gets the encoded clip name, which is a bad windows-style relative path.
 
+    Use _format_clip_filename to get something useful
+    """
+    clips = self._get_clips(root, preset_num)
     clip_filename = clips[coords['track']][coords['clip']]
     return clip_filename
 
@@ -49,7 +53,7 @@ class Handler(object):
       print ('No clip at that position')
       return
 
-    self._player.play(self._join_root(root, clip_filename))
+    self._player.play(self._format_clip_filename(root, clip_filename))
 
   def _backup_preset(self, root, preset_num):
     """Make a copy of the preset file"""
@@ -57,11 +61,11 @@ class Handler(object):
     newpath = oldpath.replace('.xml', '.bak')
     shutil.copy(oldpath, newpath)
 
-  def _join_root(self, root, suffix):
+  def _format_clip_filename(self, root, suffix):
     return os.path.join(root, suffix.replace('\\','/'))
 
   def _file_exists(self, root, suffix):
-    path = self._join_root(root, suffix)
+    path = self._format_clip_filename(root, suffix)
     return os.path.isfile(path)
 
   def _move_file(self, root, oldname, newname):
@@ -69,7 +73,7 @@ class Handler(object):
       print ('Source file does not exist: %s' % oldname)
       return False
 
-    newpath = self._join_root(root, newname)
+    newpath = self._format_clip_filename(root, newname)
     if self._file_exists(root, newpath):
       print ('Destination file already exists: %s' % newpath)
       return False
@@ -82,7 +86,7 @@ class Handler(object):
         print ('Error creating dir for %s: %s' % (newpath, e))
         return False
 
-    oldpath = self._join_root(root, oldname)
+    oldpath = self._format_clip_filename(root, oldname)
     shutil.move(oldpath, newpath)
     return True
 
@@ -122,3 +126,36 @@ class Handler(object):
     with open(preset_filename, 'w') as out:
       renamer = bbxml.BBXMLRename(parser, out, coords, newname)
       renamer.parse(backup_filename)
+
+  def normalize_clip(self, root, preset_num, coords):
+    clipname = self.get_clip(root, preset_num, coords)
+    if clipname is None:
+      return
+    effector = effects.Effector(self._format_clip_filename(root, clipname))
+    effector.normalize()
+
+  def normalize_preset(self, root, preset_num):
+    clips = self._get_clips(root, preset_num)
+    files = [self._format_clip_filename(root, c) for t in clips for c in t if c != '']
+    effects.normalize_preset(files)
+
+  def trim_clip(self, root, preset_num, coords):
+    clipname = self.get_clip(root, preset_num, coords)
+    if clipname is None:
+      return
+    effector = effects.Effector(self._format_clip_filename(root, clipname))
+    effector.trim_to_zero_crossings()
+
+  def trim_all(self, root, preset_num):
+    clips = self._get_clips(root, preset_num)
+    files = [self._format_clip_filename(root, c) for t in clips for c in t if c != '']
+    for f in files:
+      effector = effects.Effector(f)
+      effector.trim_to_zero_crossings()
+
+  def undo_clip(self, root, preset_num, coords):
+    clipname = self.get_clip(root, preset_num, coords)
+    if clipname is None:
+      return
+    effector = effects.Effector(self._format_clip_filename(root, clipname))
+    effector.undo()
