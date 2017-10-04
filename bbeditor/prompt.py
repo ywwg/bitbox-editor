@@ -63,6 +63,12 @@ class Prompt(object):
         self._handler.normalize_clip(self._root, self._cur_preset, self._cur_clip)
     elif text == 'normall':
       self._handler.normalize_preset(self._root, self._cur_preset)
+    elif text == 'trim':
+      self._cur_clip = self._choose_clip(text)
+      if self._cur_clip is not None:
+        self._handler.trim_clip(self._root, self._cur_preset, self._cur_clip)
+    elif text == 'trimall':
+      self._handler.trim_all(self._root, self._cur_preset)
     elif text.startswith('undo'):
       self._cur_clip = self._choose_clip(text)
       if self._cur_clip is not None:
@@ -83,8 +89,10 @@ class Prompt(object):
     print ('  p       # play a clip for the current preset: X,Y')
     print ('  r       # rename clip, specify coords and new name (can include subdir)')
     print ('  s       # swap clips, specify two sets of coords: 0,0  1,2')
-    print ('  norm    # Normalize a single clip)
-    print ('  normall # Normalize a whole preset by an equal amount per clip)
+    print ('  norm    # Normalize a single clip')
+    print ('  normall # Normalize a whole preset by an equal amount per clip')
+    print ('  trim    # trim start and end of clip to zero crossings for better looping (EXPERIMENTAL)')
+    print ('  trimall # trim all clips in preset (EXPERIMENTAL)')
     print ('  q       # quit')
 
   def handle_dir(self, text):

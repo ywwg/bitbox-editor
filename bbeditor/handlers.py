@@ -139,6 +139,20 @@ class Handler(object):
     files = [self._format_clip_filename(root, c) for t in clips for c in t if c != '']
     effects.normalize_preset(files)
 
+  def trim_clip(self, root, preset_num, coords):
+    clipname = self.get_clip(root, preset_num, coords)
+    if clipname is None:
+      return
+    effector = effects.Effector(self._format_clip_filename(root, clipname))
+    effector.trim_to_zero_crossings()
+
+  def trim_all(self, root, preset_num):
+    clips = self._get_clips(root, preset_num)
+    files = [self._format_clip_filename(root, c) for t in clips for c in t if c != '']
+    for f in files:
+      effector = effects.Effector(f)
+      effector.trim_to_zero_crossings()
+
   def undo_clip(self, root, preset_num, coords):
     clipname = self.get_clip(root, preset_num, coords)
     if clipname is None:

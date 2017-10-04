@@ -37,7 +37,7 @@ class Effector(object):
     self._seg = self._seg.normalize()
     self._export()
 
-  def undo_effect(self):
+  def undo(self):
     if not os.path.isfile(self._backupname):
       print ('no backup to restore, sorry')
     shutil.copy(self._backupname, self._filename)
@@ -57,6 +57,43 @@ class Effector(object):
   def apply_gain(self, boost):
     self._seg = self._seg.apply_gain(boost)
     self._export()
+
+  def trim_to_zero_crossings(self):
+    """Make samples loop-compatible with hopefully minimal affect on the length.
+
+    Starts at the beginning and deletes samples until something ~0 is found.
+    Does the same from the end.
+    Reports how many samples were deleted
+    """
+
+    samples = self._seg.get_array_of_samples()
+    oldlen = len(samples)
+    # assuming stereo?
+    trimsize = 0
+    while trimsize < 1000:
+      if abs(samples[0]) > 10 or abs(samples[1]) > 10:
+        samples = samples[2:]
+      trimsize += 1
+
+    if trimsize == 1000:
+      print ("%s: Didn't find a good zero crossing" % self._filename)
+      return
+
+    trimsize = 0
+    while trimsize < 1000:
+      if abs(samples[-1]) > 10 or abs(samples[-2]) > 10:
+        samples = samples[:-2]
+      trimsize += 1
+
+    if trimsize == 1000:
+      print ("%s: Didn't find a good zero crossing" % self._filename)
+      return
+
+    print ('%s Trimming %d samples' % (self._filename, oldlen - len(samples)))
+
+    self._seg = self._seg._spawn(samples)
+    self._export()
+
 
 def normalize_preset(filenames):
   """Normalizes all the clips in one preset equally.
