@@ -6,6 +6,8 @@ TODO: make this all chomp-style parsing.  we first chomp the command,
 Then the command can chomp a set of coords or a filename or whatever.
 Gets tricky with swap which can take one or two sets of coords
 
+It also looks like state belongs in the handler, not here.
+
 """
 import os.path
 
