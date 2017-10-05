@@ -1,7 +1,6 @@
 Deps (pipable):
 
 * python3
-* simpleaudio
 * prompt_toolkit
 * pydub
 

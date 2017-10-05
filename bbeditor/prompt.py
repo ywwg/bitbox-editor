@@ -25,7 +25,7 @@ class Prompt(object):
   def do_prompt(self):
     """Returns false if asked to quit."""
 
-    text = prompt('(? for help) > ', history=self._herstory)
+    text = prompt('bitbox-editor (? for help) > ', history=self._herstory)
 
     if text == '?':
       self.help()
@@ -42,7 +42,8 @@ class Prompt(object):
 
     if text.startswith('c'):
       self._cur_preset = self.choose_preset(text)
-      self._handler.list_preset(self._root, self._cur_preset, self._cur_clip)
+      if self._cur_preset is not None:
+        self._handler.list_preset(self._root, self._cur_preset, self._cur_clip)
       return True
 
     if not self._cur_preset:
@@ -61,24 +62,30 @@ class Prompt(object):
       self._cur_clip = self._choose_clip(text)
       if self._cur_clip is not None:
         self._handler.normalize_clip(self._root, self._cur_preset, self._cur_clip)
+        self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
     elif text == 'normall':
       self._handler.normalize_preset(self._root, self._cur_preset)
     elif text == 'trim':
       self._cur_clip = self._choose_clip(text)
       if self._cur_clip is not None:
         self._handler.trim_clip(self._root, self._cur_preset, self._cur_clip)
+        self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
     elif text == 'trimall':
       self._handler.trim_all(self._root, self._cur_preset)
+    elif text == 'mono':
+      self._cur_clip = self._choose_clip(text)
+      if self._cur_clip is not None:
+        self._handler.clip_to_mono(self._root, self._cur_preset, self._cur_clip)
+        self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
     elif text.startswith('undo'):
       self._cur_clip = self._choose_clip(text)
       if self._cur_clip is not None:
         self._handler.undo_clip(self._root, self._cur_preset, self._cur_clip)
-    elif text:
+        self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
+    else:
       self.help()
-      return True
 
     self._handler.list_preset(self._root, self._cur_preset, self._cur_clip)
-
     return True
 
   def help(self):
@@ -88,11 +95,12 @@ class Prompt(object):
     print ('  c       # choose current preset, 1-16')
     print ('  p       # play a clip for the current preset: X,Y')
     print ('  r       # rename clip, specify coords and new name (can include subdir)')
-    print ('  s       # swap clips, specify two sets of coords: 0,0  1,2')
+    print ('  s       # swap clips, specify two sets of coords: 0,0 1,2')
     print ('  norm    # Normalize a single clip')
     print ('  normall # Normalize a whole preset by an equal amount per clip')
     print ('  trim    # trim start and end of clip to zero crossings for better looping (EXPERIMENTAL)')
     print ('  trimall # trim all clips in preset (EXPERIMENTAL)')
+    print ('  mono    # convert to mono (not sure if this is doing proper gain reduction?)')
     print ('  q       # quit')
 
   def handle_dir(self, text):
@@ -137,7 +145,7 @@ class Prompt(object):
     Returns: a tuple of two ints, or None on error
     """
     def print_error():
-      print ('Expected coordinates after play command, like: 0,0')
+      print ('Expected coordinates after command, like: 0,0')
 
     coords = text.split(',')
     if len(coords) != 2:
@@ -228,9 +236,11 @@ class Prompt(object):
       if self._cur_clip['track'] is None or self._cur_clip['clip'] is None:
         print_error()
         return
-
       this_clip = self._cur_clip
       other_clip = self._parse_coords(tokens[1])
+    else:
+      print_error()
+      return
 
     this_clip['filename'] = self._handler.get_clip(self._root, self._cur_preset, this_clip)
     if not this_clip['filename']:

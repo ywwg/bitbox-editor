@@ -11,6 +11,7 @@ import os.path
 import shutil
 
 import pydub
+from pydub.playback import play
 from pydub.utils import db_to_float, ratio_to_db
 
 l = logging.getLogger("pydub.converter")
@@ -23,6 +24,9 @@ class Effector(object):
     self._seg = pydub.AudioSegment.from_wav(self._filename)
     self._backupname = self._filename.replace('.wav', '.bak')
 
+  def play(self):
+    play(self._seg)
+
   def get_filename(self):
     return self._filename
 
@@ -31,7 +35,7 @@ class Effector(object):
 
   def _export(self):
     self._backup_clip()
-    self._seg.export(self._filename, format="wav")
+    self._seg.export(self._filename, format="wav", parameters="-sample_fmt:s32")
 
   def normalize(self):
     self._seg = self._seg.normalize()
@@ -92,6 +96,10 @@ class Effector(object):
     print ('%s Trimming %d samples' % (self._filename, oldlen - len(samples)))
 
     self._seg = self._seg._spawn(samples)
+    self._export()
+
+  def to_mono(self):
+    self._seg = self._seg.set_channels(1)
     self._export()
 
 

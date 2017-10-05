@@ -9,11 +9,10 @@ import xml.sax
 
 import bbeditor.bbxml as bbxml
 import bbeditor.effects as effects
-import bbeditor.playback as playback
 
 class Handler(object):
   def __init__(self):
-    self._player = playback.Player()
+    pass
 
   def _preset_filename(self, root, preset_num):
     return os.path.join(root, 'SE0000%02d.xml' % preset_num)
@@ -48,12 +47,13 @@ class Handler(object):
 
   def play_clip(self, root, preset_num, coords):
     """Parses text and plays the given clip"""
-    clip_filename = self.get_clip(root, preset_num, coords)
-    if not clip_filename:
+    clipname = self.get_clip(root, preset_num, coords)
+    if not clipname:
       print ('No clip at that position')
       return
 
-    self._player.play(self._format_clip_filename(root, clip_filename))
+    effector = effects.Effector(self._format_clip_filename(root, clipname))
+    effector.play()
 
   def _backup_preset(self, root, preset_num):
     """Make a copy of the preset file"""
@@ -152,6 +152,13 @@ class Handler(object):
     for f in files:
       effector = effects.Effector(f)
       effector.trim_to_zero_crossings()
+
+  def clip_to_mono(self, root, preset_num, coords):
+    clipname = self.get_clip(root, preset_num, coords)
+    if clipname is None:
+      return
+    effector = effects.Effector(self._format_clip_filename(root, clipname))
+    effector.to_mono()
 
   def undo_clip(self, root, preset_num, coords):
     clipname = self.get_clip(root, preset_num, coords)
