@@ -11,8 +11,10 @@ with the XML and sample files on a 1010Music BitBox.  It can do a bunch of
 useful things like:
 
 * Rename, move, and reorganize clips within a preset
-* Basic normalization and conversion to mono for clips
-* Normalize a group of clips relative to each other
+* Rename presets
+* Conversion to mono for clips (BROKEN)
+* Normalize single clips or a group of clips relative to each other
+* Keeps a basic history of commands for faster use
 
 ## Important Caveat
 
