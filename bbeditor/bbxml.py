@@ -37,7 +37,9 @@ class BBXML(XMLFilterBase):
       self._cur_clip = -1
 
 
-class BBXMLRename(BBXML):
+class BBXMLRepoint(BBXML):
+  """Repoints filenames in the XML."""
+
   def __init__(self, input_xml, output, coords, newname):
     super().__init__(input_xml)
     self._output = XMLGenerator(output)

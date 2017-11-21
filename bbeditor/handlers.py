@@ -93,11 +93,15 @@ class Handler(object):
         return False
 
     oldpath = self._format_clip_filename(root, oldname)
-    shutil.move(oldpath, newpath)
+    try:
+      shutil.move(oldpath, newpath)
+    except Exception as e:
+      print ('Error moving file: %s' % e)
+      return False
     return True
 
   def move_clip(self, root, preset_name, coords, newname):
-    """Move file for a clip"""
+    """Move file for a clip on disk and update XML to match."""
     clip_filename = self.get_clip(root, preset_name, coords)
     if not clip_filename:
       print ('No clip at that position')
@@ -113,22 +117,22 @@ class Handler(object):
 
     parser = xml.sax.make_parser()
     with open(preset_filename, 'w') as out:
-      renamer = bbxml.BBXMLRename(parser, out, coords, newname)
-      renamer.parse(backup_filename)
+      repointer = bbxml.BBXMLRepoint(parser, out, coords, newname)
+      repointer.parse(backup_filename)
 
   def move_preset(self, root, preset_name, newname):
     preset_filename = self._preset_filename(root, preset_name)
     new_filename = self._preset_filename(root, newname)
     return self._move_file(root, preset_filename, new_filename)
 
-  def rename_clip(self, root, preset_name, coords, newname):
-    """Just rename the file in the xml, don't move anything.
+  def repoint_clip(self, root, preset_name, coords, newname):
+    """Just repoint the file in the xml, don't move anything.
 
     Doesn't check for old filename in case it was wrong (case problem)"""
     if newname:
       # Only check for path existence if not blank
       if not self._file_exists(root, newname):
-        print ('New filename does not exist, rename failed: %s' % newname)
+        print ('New filename does not exist, repoint failed: %s' % newname)
         return
     self._backup_preset(root, preset_name)
 
@@ -137,8 +141,8 @@ class Handler(object):
 
     parser = xml.sax.make_parser()
     with open(preset_filename, 'w') as out:
-      renamer = bbxml.BBXMLRename(parser, out, coords, newname)
-      renamer.parse(backup_filename)
+      repointer = bbxml.BBXMLRepoint(parser, out, coords, newname)
+      repointer.parse(backup_filename)
 
   def normalize_clip(self, root, preset_name, coords):
     clipname = self.get_clip(root, preset_name, coords)
