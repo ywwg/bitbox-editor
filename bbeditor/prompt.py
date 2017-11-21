@@ -294,7 +294,7 @@ class Prompt(object):
       print ('Need a new filename to rename to')
       return
 
-    correctname = command['args'][1]
+    correctname = command['args'][0]
     self._handler.repoint_clip(self._root, self._cur_preset, self._cur_clip, correctname)
 
   def handle_rename(self, command):
@@ -318,7 +318,7 @@ class Prompt(object):
       print_error()
       return
 
-    newname = command['args'][1]
+    newname = command['args'][0]
     self._handler.move_clip(self._root, self._cur_preset, self._cur_clip, newname)
 
   def handle_swap(self, command):
