@@ -14,15 +14,16 @@ import pydub
 from pydub.playback import play
 from pydub.utils import db_to_float, ratio_to_db
 
-l = logging.getLogger("pydub.converter")
-l.setLevel(logging.DEBUG)
-l.addHandler(logging.StreamHandler())
+#l = logging.getLogger("pydub.converter")
+#l.setLevel(logging.DEBUG)
+#l.addHandler(logging.StreamHandler())
 
 class Effector(object):
   def __init__(self, filename):
     self._filename = filename
     self._seg = pydub.AudioSegment.from_wav(self._filename)
-    self._backupname = self._filename.replace('.wav', '.bak')
+    base, ext = os.path.splitext(self._filename)
+    self._backupname = base + '.bak'
 
   def play(self):
     play(self._seg)
