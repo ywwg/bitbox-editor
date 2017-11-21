@@ -1,6 +1,5 @@
 """ bbxml.py
-Eventually this will have to munge files and call osutil and whatnot.
-not sure if I want two classes, one just for reading and another for reading and writing.
+Process BitBox XML files, with different filters for different operations.
 """
 
 import copy
@@ -9,8 +8,13 @@ import xml.sax
 from xml.sax.saxutils import XMLFilterBase, XMLGenerator
 
 class BBXML(XMLFilterBase):
-  def __init__(self, input_xml):
-    super().__init__(input_xml)
+  """Base class for BitBox XML Processing.
+
+  Loads filenames for each clip into memory for access.
+  """
+  def __init__(self, parser):
+    """parser: a xml.sax.make_parser() object"""
+    super().__init__(parser)
     self._cur_track = -1
     self._cur_clip = -1
     self._clips = [['' for j in range(0,4)] for i in range(0,4)]
@@ -22,6 +26,7 @@ class BBXML(XMLFilterBase):
     super().parse(source)
 
   def clips(self):
+    """Returns a copy of the list of clips (readonly)."""
     return copy.deepcopy(self._clips)
 
   def startElement(self, name, attrs):
@@ -38,10 +43,19 @@ class BBXML(XMLFilterBase):
 
 
 class BBXMLRepoint(BBXML):
-  """Repoints filenames in the XML."""
+  """Repoints filenames in the XML.
 
-  def __init__(self, input_xml, output, coords, newname):
-    super().__init__(input_xml)
+  Silently converts paths to Windows-style path separators.
+
+  Arguments:
+    parser: the xml.sax.make_parser() object
+    output: the output file object
+    coords: a coordinate dictionary with int keys 'track' and 'clip'
+    newname: the new name for the clip at those coordinates
+  """
+
+  def __init__(self, parser, output, coords, newname):
+    super().__init__(parser)
     self._output = XMLGenerator(output)
     self._coords = coords
     # BitBox uses windows-style paths
