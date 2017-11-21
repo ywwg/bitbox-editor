@@ -131,8 +131,6 @@ class Prompt(object):
     print ('  mono    # convert to mono (BROKEN in pydub master)')
     print ('  undo    # restore a clip from its most recent backup')
     print ('  q       # quit')
-    print ('')
-    print ('If your argument has spaces, put quotes around it!')
 
   def _parse_coords(self, text):
     """Parses a comma-separated pair of ints and does valiation.
@@ -264,7 +262,6 @@ class Prompt(object):
 
     if not command['arg']:
       print ('Wrong number of arguments, want one preset name')
-      print ('(remember to quote spaced names)')
       return None
 
     preset_name = command['arg']
@@ -280,7 +277,6 @@ class Prompt(object):
 
     if not command['arg']:
       print ('Wrong number of arguments, want a new preset name')
-      print ('(remember to quote spaced names)')
       return None
 
     if self._cur_preset is None:
@@ -323,7 +319,6 @@ class Prompt(object):
     def print_error():
       print ('Expected coordinates and correct filename, like: 0,0 foo/bar/baz.wav')
       print ('Or just a new filename if clip is selected like: foo/bar/baz.wav')
-      print ('(remember to quote spaced filenames)')
 
     if len(command['coords']) == 1:
       self._choose_clip(command)
@@ -347,7 +342,6 @@ class Prompt(object):
     def print_error():
       print ('Expected coordinates and new filename, like: 0,0 foo/bar/baz.wav')
       print ('Or just a new filename if clip is selected like: foo/bar/baz.wav')
-      print ('(remember to quote spaced filenames)')
 
     if len(command['coords']) == 1:
       self._choose_clip(command)
