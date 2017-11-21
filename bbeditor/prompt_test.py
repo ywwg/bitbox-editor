@@ -17,48 +17,57 @@ class PromptTest(unittest.TestCase):
     self.assertEqual({'track': 1, 'clip': 2}, self._p._parse_coords(' 1 , 2   '))
     self.assertIsNone(self._p._parse_coords('0,'))
     self.assertIsNone(self._p._parse_coords('urmam'))
-    self.assertIsNone(self._p._parse_coords('-1,3'))
-    self.assertIsNone(self._p._parse_coords('0,4'))
+    with self.assertRaises(prompt.InvalidCoordinates):
+      self._p._parse_coords('-1,3')
+    with self.assertRaises(prompt.InvalidCoordinates):
+      self._p._parse_coords('0,4')
     self.assertIsNone(self._p._parse_coords('x,y'))
     self.assertIsNone(self._p._parse_coords('0,2,1'))
     self.assertIsNone(self._p._parse_coords('0.1'))
 
   def test_parse_command(self):
-    self.assertEqual({'command': 'p', 'coords': [], 'args': []},
+    self.assertEqual({'command': 'p', 'coords': [], 'arg': ''},
                      self._p.parse_command('p'))
-    self.assertEqual({'command': 'p', 'coords': [], 'args': []},
+    self.assertEqual({'command': 'p', 'coords': [], 'arg': ''},
                      self._p.parse_command('p '))
-    self.assertEqual({'command': 'play', 'coords': [], 'args': []},
+    self.assertEqual({'command': 'play', 'coords': [], 'arg': ''},
                      self._p.parse_command('play'))
-    self.assertEqual({'command': 'p', 'coords': [{'clip': 1, 'track': 2}], 'args': []},
+    self.assertEqual({'command': 'p', 'coords': [{'clip': 1, 'track': 2}], 'arg': ''},
                      self._p.parse_command('p 2,1'))
-    self.assertEqual({'command': 'f', 'coords': [], 'args': ['foo/bar/baz']},
+    self.assertEqual({'command': 'f', 'coords': [], 'arg': 'foo/bar/baz'},
                      self._p.parse_command('f foo/bar/baz'))
-    self.assertEqual({'command': 'f', 'coords': [{'clip': 2, 'track': 2}], 'args': ['foo/bar/baz with space.txt']},
-                     self._p.parse_command('f 2,2 "foo/bar/baz with space.txt"'))
+    self.assertEqual({'command': 'f', 'coords': [{'clip': 2, 'track': 2}], 'arg': 'foo/bar/baz with space.txt'},
+                     self._p.parse_command('f 2,2 foo/bar/baz with space.txt'))
     self.assertEqual({'command': 's', 'coords': [
                        {'clip': 1, 'track': 2},
                        {'clip': 2, 'track': 3}
-                     ], 'args': []},
+                     ], 'arg': ''},
                      self._p.parse_command('s 2,1   3,2'))
+    self.assertEqual({'command': 's', 'coords': [
+                       {'clip': 1, 'track': 2},
+                       {'clip': 2, 'track': 3}
+                     ], 'arg': '/this/is/more stuff.txt'},
+                     self._p.parse_command('   s 2,1  3,2    /this/is/more stuff.txt'))
+    self.assertEqual({'command': '', 'coords': [], 'arg': ''},
+                     self._p.parse_command('s some text 2,1'))
 
   def test_handle_dir(self):
     d = tempfile.mkdtemp()
     command = {
       'command': 'd',
       'coords': [],
-      'args': ['/not/a/path'],
+      'arg': '/not/a/path',
     }
 
     self.assertIsNone(self._p.handle_dir(command))
 
-    command['args'][0] = d
+    command['arg'] = d
     self.assertEqual(d, self._p.handle_dir(command))
 
-    command['args'].append('oops')
+    command['arg'] += 'oops'
     self.assertIsNone(self._p.handle_dir(command))
 
-    command['args'] = []
+    command['arg'] = ''
     self.assertIsNone(self._p.handle_dir(command))
 
     os.rmdir(d)
@@ -69,14 +78,14 @@ class PromptTest(unittest.TestCase):
       command = {
         'command': 'c',
         'coords': [],
-        'args': [preset_name],
+        'arg': preset_name,
       }
       self.assertEqual(preset_name, self._p.choose_preset(command))
 
-      command['args'][0] = "nope"
+      command['arg'] = "nope"
       self.assertIsNone(self._p.choose_preset(command))
 
-      command['args'] = []
+      command['arg'] = ''
       self.assertIsNone(self._p.choose_preset(command))
 
 

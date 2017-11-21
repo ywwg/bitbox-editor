@@ -11,12 +11,14 @@ It also looks like state belongs in the handler, not here.
 """
 import glob
 import os.path
-import shlex
 
 from prompt_toolkit import prompt
 from prompt_toolkit.history import FileHistory
 
 import bbeditor.handlers as handlers
+
+class InvalidCoordinates(Exception):
+  pass
 
 class Prompt(object):
   def __init__(self, herstory_file):
@@ -136,6 +138,8 @@ class Prompt(object):
     """Parses a comma-separated pair of ints and does valiation.
 
     Returns: a tuple of two ints, or None on error
+
+    Throws: InvalidCoordinates if it looks like coordinates but is invalid.
     """
     coords = text.split(',')
     if len(coords) != 2:
@@ -149,14 +153,23 @@ class Prompt(object):
       return None
 
     if track_num < 0 or track_num > 3:
-      return None
+      raise InvalidCoordinates(text)
     if clip_num < 0 or clip_num > 3:
-      return None
+      raise InvalidCoordinates(text)
 
     return {'track': track_num, 'clip': clip_num}
 
   def parse_command(self, text):
-    """Takes a raw command and returns a dictionary to describe it
+    """Takes a raw command and returns a dictionary to describe it.
+
+    Commands are of the form:
+      [command] (coords...) (string argument)
+
+    Where coords are zero or more int pairs like '3,4' (no quotes needed).
+
+    If the coords are out of bounds they won't be returned, which could cause
+    problems for things like: norm 3,6 because it'll just return norm and
+    operate on the current clip.
 
     Returns:
       dict: {
@@ -165,23 +178,57 @@ class Prompt(object):
         'arg': a List of remaining arguments
       }
     """
-    tokens = shlex.split(text)
     command = {
-      'command': tokens[0],
+      'command': '',
       'coords': [],
-      'args': [],
+      'arg': '',
     }
-    if len(tokens) == 1:
-      return command
-    for t in tokens[1:]:
-      t = t.strip()
-      if len(t) == 0:
+
+    found_cmd = False
+    found_noncoord = False
+    while text:
+      space_idx = text.find(' ')
+      if space_idx == -1:
+        t = text
+        text = ''
+      else:
+        t = text[:space_idx]
+        text = text[space_idx + 1:]
+
+      if not t.strip():
         continue
-      coords = self._parse_coords(t)
+
+      if not found_cmd:
+        command['command'] = t.strip()
+        found_cmd = True
+        continue
+
+      try:
+        coords = self._parse_coords(t)
+      except InvalidCoordinates:
+        return {
+            'command': '',
+            'coords': [],
+            'arg': '',
+          }
       if coords is not None:
+        if found_noncoord:
+          # Coords after args are invalid.
+          return {
+            'command': '',
+            'coords': [],
+            'arg': '',
+          }
         command['coords'].append(coords)
         continue
-      command['args'].append(t)
+
+      if found_noncoord:
+        continue
+
+      found_noncoord = True
+      command['arg'] = t
+      if text:
+        command['arg'] += ' ' + text
     return command
 
 
@@ -191,16 +238,11 @@ class Prompt(object):
     Returns None if not a valid dir
     """
 
-    if len(command['args']) == 0:
+    if not command['arg']:
       print ('current path: %s' % self._root)
       return None
 
-    if len(command['args']) > 1:
-      print ('Too many arguments, want a single path.')
-      print ('(remember to quote spaced paths)')
-      return None
-
-    path = command['args'][0]
+    path = command['arg']
 
     if not os.path.isdir(path):
       print ('bad path: %s' % path)
@@ -220,12 +262,12 @@ class Prompt(object):
       valid preset string or None on invalid input
     """
 
-    if len(command['args']) != 1:
+    if not command['arg']:
       print ('Wrong number of arguments, want one preset name')
       print ('(remember to quote spaced names)')
       return None
 
-    preset_name = command['args'][0]
+    preset_name = command['arg']
     if not os.path.isfile(os.path.join(self._root, '%s.xml' % preset_name)):
       print ("Didn't find preset: '%s'" % (preset_name))
       return None
@@ -236,7 +278,7 @@ class Prompt(object):
     """Moves preset filename (renaming preset)"
     """
 
-    if len(command['args']) == 0:
+    if not command['arg']:
       print ('Wrong number of arguments, want a new preset name')
       print ('(remember to quote spaced names)')
       return None
@@ -245,7 +287,7 @@ class Prompt(object):
       print ('No preset selected, select one to rename')
       return None
 
-    new_name = command['args'][0]
+    new_name = command['arg']
     if self._handler.move_preset(self._root, self._cur_preset, new_name):
       self._cur_preset = new_name
 
@@ -290,11 +332,11 @@ class Prompt(object):
       print ('Need to select a clip')
       return
 
-    if len(command['args']) != 1:
+    if not command['arg']:
       print ('Need a new filename to rename to')
       return
 
-    correctname = command['args'][0]
+    correctname = command['arg']
     self._handler.repoint_clip(self._root, self._cur_preset, self._cur_clip, correctname)
 
   def handle_rename(self, command):
@@ -314,11 +356,11 @@ class Prompt(object):
       print_error()
       return
 
-    if len(command['args']) != 1:
+    if not command['arg']:
       print_error()
       return
 
-    newname = command['args'][0]
+    newname = command['arg']
     self._handler.move_clip(self._root, self._cur_preset, self._cur_clip, newname)
 
   def handle_swap(self, command):
