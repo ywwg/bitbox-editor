@@ -20,6 +20,10 @@ Any operations that involve editing audio data (normalize, mono conversion)
 downsample to 16bit!  If you are uncomfortable with this loss of quality don't
 use this tool.
 
+## Another Important Caveat
+
+Conversion to mono is broken in pydub master, so don't use it.
+
 ## Commands
 
 * **dir**: Set which dir the bitbox files are in
