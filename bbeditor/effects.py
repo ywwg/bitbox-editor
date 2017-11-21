@@ -35,7 +35,9 @@ class Effector(object):
 
   def _export(self):
     self._backup_clip()
-    self._seg.export(self._filename, format="wav", parameters="-sample_fmt:s32")
+    # pydub outputs 24bit as 32, and the files don't play in bitbox.  Instead drop to 16
+    self._seg = self._seg.set_sample_width(2)
+    self._seg.export(self._filename, format="wav")
 
   def normalize(self):
     self._seg = self._seg.normalize()
@@ -99,6 +101,8 @@ class Effector(object):
     self._export()
 
   def to_mono(self):
+    # Still broken!
+    self._seg = self._seg.apply_gain(0.5)
     self._seg = self._seg.set_channels(1)
     self._export()
 

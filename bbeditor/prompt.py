@@ -9,6 +9,7 @@ Gets tricky with swap which can take one or two sets of coords
 It also looks like state belongs in the handler, not here.
 
 """
+import glob
 import os.path
 
 from prompt_toolkit import prompt
@@ -48,6 +49,10 @@ class Prompt(object):
         self._handler.list_preset(self._root, self._cur_preset, self._cur_clip)
       return True
 
+    if text.startswith('l'):
+      self.list_presets()
+      return True
+
     if not self._cur_preset:
       print ('Please choose a preset with c')
       return True
@@ -56,6 +61,10 @@ class Prompt(object):
       self._cur_clip = self._choose_clip(text)
       if self._cur_clip is not None:
         self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
+    elif text.startswith('f'):
+      self.handle_fix(text)
+    elif text.startswith('m '):
+      self.move_preset(text)
     elif text.startswith('r'):
       self.handle_rename(text)
     elif text.startswith('s'):
@@ -94,15 +103,18 @@ class Prompt(object):
     print ('Known commands:')
     print ('')
     print ('  dir     # set which dir the bitbox files are in')
-    print ('  c       # choose current preset, 1-16')
+    print ('  l       # list presets')
+    print ('  c       # choose current preset by name')
+    print ('  m       # move preset to new name')
     print ('  p       # play a clip for the current preset: X,Y')
+    print ('  f       # fix a clip with a bad filename')
     print ('  r       # rename clip, specify coords and new name (can include subdir)')
     print ('  s       # swap clips, specify two sets of coords: 0,0 1,2')
     print ('  norm    # Normalize a single clip')
     print ('  normall # Normalize a whole preset by an equal amount per clip')
     print ('  trim    # trim start and end of clip to zero crossings for better looping (EXPERIMENTAL)')
     print ('  trimall # trim all clips in preset (EXPERIMENTAL)')
-    print ('  mono    # convert to mono (not sure if this is doing proper gain reduction?)')
+    print ('  mono    # convert to mono (BROKEN)')
     print ('  q       # quit')
 
   def handle_dir(self, text):
@@ -121,25 +133,31 @@ class Prompt(object):
       return None
     return path
 
-  def choose_preset(self, text):
-    """Parses text and extracts preset value
+  def list_presets(self):
+    for f in sorted(glob.glob(os.path.join(self._root, "*.xml"))):
+      print (os.path.basename(f))
 
-    Returns None on invalid input
+  def choose_preset(self, text):
+    """Parses text and extracts preset name
+
+    Returns:
+      valid preset string or None on invalid input
     """
 
-    tokens = text.split(' ')
-    preset_num = -1
-    try:
-      preset_num = int(tokens[1])
-    except:
-      print ('Expected number between 1 and 16 after l command')
+    preset_name = text.split(' ', 1)[1]
+    if not os.path.isfile(os.path.join(self._root, '%s.xml' % preset_name)):
+      print ("Didn't find preset %s" % (preset_name))
       return None
 
-    if preset_num < 1 or preset_num > 16:
-      print ('Expected number between 1 and 16 after l command')
-      return None
+    return preset_name
 
-    return preset_num
+  def move_preset(self, text):
+    """Moves preset filename (renaming preset)"
+    """
+    new_name = text.split(' ', 1)[1].upper()
+
+    if self._handler.move_preset(self._root, self._cur_preset, new_name):
+      self._cur_preset = new_name
 
   def _parse_coords(self, text):
     """Parses a comma-separated pair of ints and does valiation.
@@ -191,6 +209,28 @@ class Prompt(object):
     self._cur_clip = coords
     return coords
 
+  def handle_fix(self, text):
+    tokens = text.split(' ', 2)
+    if len(tokens) == 2:
+      # if we have a clip selected we can just rename it
+      if self._cur_clip['track'] is not None and tokens[1].upper().endswith('.WAV'):
+        self._handler.rename_clip(
+            self._root, self._cur_preset, self._cur_clip, tokens[1])
+        return
+    elif len(tokens) != 3:
+      print_error()
+      return
+
+    coords = self._parse_coords(tokens[1])
+    if coords is None:
+      return
+    if not self._handler.get_clip(self._root, self._cur_preset, coords):
+      print ('No clip at that position')
+      return
+    self._cur_clip = coords
+
+    self._handler.rename_clip(self._root, self._cur_preset, self._cur_clip, tokens[2])
+
   def handle_rename(self, text):
     def print_error():
       print ('Expected coordinates and new filename, like: 0,0 foo/bar/baz.wav')
@@ -199,7 +239,7 @@ class Prompt(object):
     tokens = text.split(' ', 2)
     if len(tokens) == 2:
       # if we have a clip selected we can just rename it
-      if self._cur_clip['track'] is not None and tokens[1].endswith('.wav'):
+      if self._cur_clip['track'] is not None and tokens[1].upper().endswith('.WAV'):
         self._handler.move_clip(
             self._root, self._cur_preset, self._cur_clip, tokens[1])
         return
