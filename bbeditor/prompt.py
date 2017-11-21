@@ -251,7 +251,7 @@ class Prompt(object):
     """Show all the files in the root with .xml extensions"""
     print ('Presets in %s:' % self._root)
     for f in sorted(glob.glob(os.path.join(self._root, "*.xml"))):
-      print (os.path.basename(f))
+      print (os.path.splitext(os.path.basename(f))[0])
 
   def choose_preset(self, command):
     """Parses text and extracts preset name
