@@ -14,6 +14,12 @@ useful things like:
 * Basic normalization and conversion to mono for clips
 * Normalize a group of clips relative to each other
 
+## Important Caveat
+
+Any operations that involve editing audio data (normalize, mono conversion)
+downsample to 16bit!  If you are uncomfortable with this loss of quality don't
+use this tool.
+
 ## Commands
 
 * **dir**: Set which dir the bitbox files are in
