@@ -126,7 +126,7 @@ class Prompt(object):
     print ('  normall # Normalize a whole preset by an equal amount per clip')
     print ('  trim    # trim start and end of clip to zero crossings for better looping (EXPERIMENTAL)')
     print ('  trimall # trim all clips in preset (EXPERIMENTAL)')
-    print ('  mono    # convert to mono (BROKEN)')
+    print ('  mono    # convert to mono (BROKEN in pydub master)')
     print ('  undo    # restore a clip from its most recent backup')
     print ('  q       # quit')
     print ('')
