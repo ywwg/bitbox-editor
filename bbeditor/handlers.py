@@ -23,9 +23,17 @@ class Handler(object):
     xmlfilter.parse(self._preset_filename(root, preset_name))
     return xmlfilter.clips()
 
+  def _get_clips_filenames(self, root, preset_name):
+    clips = self._get_clips(root, preset_name)
+    files = [['' for j in range(0,4)] for i in range(0,4)]
+    for i in range(0, 4):
+      for j in range(0, 4):
+        files[i][j] = clips[i][j]['filename']
+    return files
+
   def list_preset(self, root, preset_name, coords):
     """Lists clips in given preset"""
-    clips = self._get_clips(root, preset_name)
+    clips = self._get_clips_filenames(root, preset_name)
     print ('')
     print ('Preset %s:' % preset_name)
     for tracknum in range(0, 4):
@@ -41,7 +49,7 @@ class Handler(object):
 
     Use _format_clip_filename to get something useful
     """
-    clips = self._get_clips(root, preset_name)
+    clips = self._get_clips_filenames(root, preset_name)
     clip_filename = clips[coords['track']][coords['clip']]
     return clip_filename
 
@@ -64,7 +72,7 @@ class Handler(object):
   def _backup_preset(self, root, preset_name):
     """Make a copy of the preset file"""
     oldpath = os.path.join(root, self._preset_filename(root, preset_name))
-    newpath = oldpath.replace('.xml', '.bak')
+    newpath = os.path.splitext(oldpath)[0] + '.bak'
     shutil.copy(oldpath, newpath)
 
   def _format_clip_filename(self, root, suffix):
@@ -110,7 +118,7 @@ class Handler(object):
     self._backup_preset(root, preset_name)
 
     preset_filename = self._preset_filename(root, preset_name)
-    backup_filename = preset_filename.replace('.xml', '.bak')
+    backup_filename = os.path.splitext(preset_filename)[0] + '.bak'
 
     if not self._move_file(root, clip_filename, newname):
       return
@@ -137,12 +145,34 @@ class Handler(object):
     self._backup_preset(root, preset_name)
 
     preset_filename = self._preset_filename(root, preset_name)
-    backup_filename = preset_filename.replace('.xml', '.bak')
+    backup_filename = os.path.splitext(preset_filename)[0] + '.bak'
 
     parser = xml.sax.make_parser()
     with open(preset_filename, 'w') as out:
       repointer = bbxml.BBXMLRepoint(parser, out, coords, newname)
       repointer.parse(backup_filename)
+
+  def swap_clips(self, root, preset_name, this_coords, that_coords):
+    clips = self._get_clips(root, preset_name)
+    self._backup_preset(root, preset_name)
+    preset_filename = self._preset_filename(root, preset_name)
+    backup_filename = os.path.splitext(preset_filename)[0] + '.bak'
+    inter_filename = os.path.splitext(preset_filename)[0] + '.inter'
+
+    parser = xml.sax.make_parser()
+    with open(inter_filename, 'w') as out:
+      overwriter = bbxml.BBXMLOverwrite(
+          parser, out, this_coords,
+          clips[that_coords['track']][that_coords['clip']])
+      overwriter.parse(backup_filename)
+
+    with open(preset_filename, 'w') as out:
+      overwriter = bbxml.BBXMLOverwrite(
+          parser, out, that_coords,
+          clips[this_coords['track']][this_coords['clip']])
+      overwriter.parse(inter_filename)
+
+    os.remove(inter_filename)
 
   def normalize_clip(self, root, preset_name, coords):
     clipname = self.get_clip(root, preset_name, coords)
@@ -152,7 +182,7 @@ class Handler(object):
     effector.normalize()
 
   def normalize_preset(self, root, preset_name):
-    clips = self._get_clips(root, preset_name)
+    clips = self._get_clips_filenames(root, preset_name)
     files = [self._format_clip_filename(root, c) for t in clips for c in t if c != '']
     effects.normalize_preset(files)
 
@@ -164,7 +194,7 @@ class Handler(object):
     effector.trim_to_zero_crossings()
 
   def trim_all(self, root, preset_name):
-    clips = self._get_clips(root, preset_name)
+    clips = self._get_clips_filenames(root, preset_name)
     files = [self._format_clip_filename(root, c) for t in clips for c in t if c != '']
     for f in files:
       effector = effects.Effector(f)

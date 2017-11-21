@@ -70,8 +70,6 @@ class Prompt(object):
       print ('Please choose a preset with c')
       return True
 
-    self._handler.list_preset(self._root, self._cur_preset, self._cur_clip)
-
     if command['command'] == 'p':
       self._cur_clip = self._choose_clip(command)
       if self._cur_clip is not None:
@@ -110,6 +108,8 @@ class Prompt(object):
         self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
     else:
       self.help()
+
+    self._handler.list_preset(self._root, self._cur_preset, self._cur_clip)
 
     return True
 
@@ -378,16 +378,4 @@ class Prompt(object):
       print_error()
       return
 
-    this_clip['filename'] = self._handler.get_clip(self._root, self._cur_preset, this_clip)
-    if not this_clip['filename']:
-      this_clip['filename'] = ''
-      self._cur_clip = this_clip
-    other_clip['filename'] = self._handler.get_clip(self._root, self._cur_preset, other_clip)
-    if not other_clip['filename']:
-      other_clip['filename'] = ''
-      self._cur_clip = other_clip
-
-    # repoint just changes the XML, so nothing changes on disk (and we don't
-    # do something stupid like overwrite one clip with the other).
-    self._handler.repoint_clip(self._root, self._cur_preset, other_clip, this_clip['filename'])
-    self._handler.repoint_clip(self._root, self._cur_preset, this_clip, other_clip['filename'])
+    self._handler.swap_clips(self._root, self._cur_preset, this_clip, other_clip)
