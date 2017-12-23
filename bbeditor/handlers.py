@@ -23,7 +23,7 @@ class Handler(object):
     xmlfilter.parse(self._preset_filename(root, preset_name))
     return xmlfilter.clips()
 
-  def _get_clips_filenames(self, root, preset_name):
+  def get_clips_filenames(self, root, preset_name):
     clips = self._get_clips(root, preset_name)
     files = [['' for j in range(0,4)] for i in range(0,4)]
     for i in range(0, 4):
@@ -33,7 +33,7 @@ class Handler(object):
 
   def list_preset(self, root, preset_name, coords):
     """Lists clips in given preset"""
-    clips = self._get_clips_filenames(root, preset_name)
+    clips = self.get_clips_filenames(root, preset_name)
     print ('')
     print ('Preset %s:' % preset_name)
     for tracknum in range(0, 4):
@@ -49,7 +49,7 @@ class Handler(object):
 
     Use _format_clip_filename to get something useful
     """
-    clips = self._get_clips_filenames(root, preset_name)
+    clips = self.get_clips_filenames(root, preset_name)
     clip_filename = clips[coords['track']][coords['clip']]
     return clip_filename
 
@@ -182,7 +182,7 @@ class Handler(object):
     effector.normalize()
 
   def normalize_preset(self, root, preset_name):
-    clips = self._get_clips_filenames(root, preset_name)
+    clips = self.get_clips_filenames(root, preset_name)
     files = [self._format_clip_filename(root, c) for t in clips for c in t if c != '']
     effects.normalize_preset(files)
 
@@ -194,7 +194,7 @@ class Handler(object):
     effector.trim_to_zero_crossings()
 
   def trim_all(self, root, preset_name):
-    clips = self._get_clips_filenames(root, preset_name)
+    clips = self.get_clips_filenames(root, preset_name)
     files = [self._format_clip_filename(root, c) for t in clips for c in t if c != '']
     for f in files:
       effector = effects.Effector(f)

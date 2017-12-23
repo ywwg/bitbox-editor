@@ -11,14 +11,50 @@ It also looks like state belongs in the handler, not here.
 """
 import glob
 import os.path
+import re
 
 from prompt_toolkit import prompt
+from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.history import FileHistory
 
 import bbeditor.handlers as handlers
 
 class InvalidCoordinates(Exception):
   pass
+
+class BBCompleter(Completer):
+  """Handles completions for commands.
+
+  Needs access to the parent prompt for certain operations, and has its own Handler when it
+  needs access to information about the preset.
+  """
+
+  def __init__(self, prompt):
+    self._prompt = prompt
+    self._handler = handlers.Handler()
+
+  def get_completions(self, document, complete_event):
+    command = self._prompt.parse_command(document.current_line_before_cursor)
+    # Completion for choosing a new preset
+    if command['command'] == 'c':
+      if command['arg']:
+        for p in self._prompt.list_presets():
+          if p.startswith(command['arg']):
+            yield Completion(p, start_position=0-len(command['arg']))
+    # Completion for specifying coordinates
+    elif not command['coords'] and self._prompt.get_cur_preset():
+      root = self._prompt.get_root()
+      preset = self._prompt.get_cur_preset()
+      # Match partial coordinates
+      coord_matcher = re.compile(r'[0-3],?$')
+      if coord_matcher.match(command['arg']):
+        for x, track in enumerate(self._handler.get_clips_filenames(root, preset)):
+          for y, clip in enumerate(track):
+            coords = '%d,%d' % (x,y)
+            # If this slot has a clip in it and it matches the partial coordinates, offer completion
+            if clip and coords.startswith(command['arg']):
+              yield Completion(coords, start_position=0-len(command['arg']))
+
 
 class Prompt(object):
   def __init__(self, herstory_file):
@@ -32,15 +68,22 @@ class Prompt(object):
         path = self.handle_dir(command)
         if path is not None:
           self._root = path
-          self.list_presets()
+          print ('Presets in %s:' % self._root)
+          print ('\n'.join(self.list_presets()))
         break
     self._cur_preset = None
     self._cur_clip = {'track': None, 'clip':None}
 
+  def get_root(self):
+    return self._root
+
+  def get_cur_preset(self):
+    return self._cur_preset
+
   def do_prompt(self):
     """Returns false if asked to quit."""
 
-    text = prompt('bitbox-editor (? for help) > ', history=self._herstory)
+    text = prompt('bitbox-editor (? for help) > ', history=self._herstory, completer=BBCompleter(self))
     command = self.parse_command(text)
 
     if command['command'] == '?':
@@ -63,7 +106,8 @@ class Prompt(object):
       return True
 
     if command['command'] == 'l':
-      self.list_presets()
+      print ('Presets in %s:' % self._root)
+      print ('\n'.join(self.list_presets()))
       return True
 
     if not self._cur_preset:
@@ -229,7 +273,6 @@ class Prompt(object):
         command['arg'] += ' ' + text
     return command
 
-
   def handle_dir(self, command):
     """Parses out which directory the user specified and returns it.
 
@@ -248,10 +291,11 @@ class Prompt(object):
     return path
 
   def list_presets(self):
-    """Show all the files in the root with .xml extensions"""
-    print ('Presets in %s:' % self._root)
+    """Return all the files in the root with .xml extensions"""
+    xmls = []
     for f in sorted(glob.glob(os.path.join(self._root, "*.xml"))):
-      print (os.path.splitext(os.path.basename(f))[0])
+      xmls.append(os.path.splitext(os.path.basename(f))[0])
+    return xmls
 
   def choose_preset(self, command):
     """Parses text and extracts preset name
