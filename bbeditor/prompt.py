@@ -12,6 +12,7 @@ It also looks like state belongs in the handler, not here.
 import glob
 import os.path
 import re
+import shutil
 
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import Completer, Completion
@@ -109,6 +110,9 @@ class Prompt(object):
       print ('Presets in %s:' % self._root)
       print ('\n'.join(self.list_presets()))
       return True
+    if command['command'] == 'exportv1':
+      self.export_v1()
+      return True
 
     if not self._cur_preset:
       print ('Please choose a preset with c')
@@ -160,21 +164,23 @@ class Prompt(object):
   def help(self):
     print ('Known commands:')
     print ('')
-    print ('  dir     # set which dir the bitbox files are in')
-    print ('  l       # list presets')
-    print ('  c       # choose current preset by name')
-    print ('  m       # move preset to new name')
-    print ('  p       # play a clip for the current preset: X,Y')
-    print ('  f       # fix a clip with a bad filename')
-    print ('  r       # rename clip, specify coords and new name (can include subdir)')
-    print ('  s       # swap clips, specify two sets of coords: 0,0 1,2')
-    print ('  norm    # Normalize a single clip')
-    print ('  normall # Normalize a whole preset by an equal amount per clip')
-    print ('  trim    # trim start and end of clip to zero crossings for better looping (EXPERIMENTAL)')
-    print ('  trimall # trim all clips in preset (EXPERIMENTAL)')
-    print ('  mono    # convert to mono (BROKEN in pydub master)')
-    print ('  undo    # restore a clip from its most recent backup')
-    print ('  q       # quit')
+    print ('  dir      # set which dir the bitbox files are in')
+    print ('  l        # list presets')
+    print ('  c        # choose current preset by name')
+    print ('  m        # move preset to new name')
+    print ('  p        # play a clip for the current preset: X,Y')
+    print ('  f        # fix a clip with a bad filename')
+    print ('  r        # rename clip, specify coords and new name (can include subdir)')
+    print ('  s        # swap clips, specify two sets of coords: 0,0 1,2')
+    print ('  norm     # Normalize a single clip')
+    print ('  normall  # Normalize a whole preset by an equal amount per clip')
+    print ('  trim     # trim start and end of clip to zero crossings for better looping (EXPERIMENTAL)')
+    print ('  trimall  # trim all clips in preset (EXPERIMENTAL)')
+    print ('  mono     # convert to mono (BROKEN in pydub master)')
+    print ('  undo     # restore a clip from its most recent backup')
+    print ('  exportv1 # Export the first 12 xml files in the directory as old-style ' +
+           'SE000001.xml presets for use on older firmwares')
+    print ('  q        # quit')
 
   def _parse_coords(self, text):
     """Parses a comma-separated pair of ints and does valiation.
@@ -293,9 +299,16 @@ class Prompt(object):
   def list_presets(self):
     """Return all the files in the root with .xml extensions"""
     xmls = []
-    for f in sorted(glob.glob(os.path.join(self._root, "*.xml"))):
+    for f in sorted(glob.glob(os.path.join(self._root, '*.xml'))):
       xmls.append(os.path.splitext(os.path.basename(f))[0])
     return xmls
+
+  def export_v1(self):
+    for i, f in enumerate(sorted(glob.glob(os.path.join(self._root, '*.xml')))[:12]):
+      oldpath = os.path.join(self._root, f)
+      newpath = os.path.join(self._root, 'SE%06d.XML' % (i + 1))
+      print ('Copying %s to %s' % (oldpath, newpath))
+      shutil.copy(oldpath, newpath)
 
   def choose_preset(self, command):
     """Parses text and extracts preset name
