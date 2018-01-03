@@ -20,7 +20,11 @@ from prompt_toolkit.history import FileHistory
 
 import bbeditor.handlers as handlers
 
-class InvalidCoordinates(Exception):
+class Error(Exception):
+  """Base class for exceptions in this module."""
+  pass
+
+class InvalidCoordinates(Error):
   pass
 
 class BBCompleter(Completer):
@@ -103,7 +107,7 @@ class Prompt(object):
     if command['command'] == 'c':
       self._cur_preset = self.choose_preset(command)
       if self._cur_preset is not None:
-        self._handler.list_preset(self._root, self._cur_preset, self._cur_clip)
+        self.show_current_preset()
       return True
 
     if command['command'] == 'l':
@@ -121,7 +125,7 @@ class Prompt(object):
     if command['command'] == 'p':
       self._cur_clip = self._choose_clip(command)
       if self._cur_clip is not None:
-        self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
+        self.play_current_clip()
     elif command['command'] == 'f':
       self.handle_fix(command)
     elif command['command'] == 'm':
@@ -134,30 +138,30 @@ class Prompt(object):
       self._cur_clip = self._choose_clip(command)
       if self._cur_clip is not None:
         self._handler.normalize_clip(self._root, self._cur_preset, self._cur_clip)
-        self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
+        self.play_current_clip()
     elif command['command'] == 'normall':
       self._handler.normalize_preset(self._root, self._cur_preset)
     elif command['command'] == 'trim':
       self._cur_clip = self._choose_clip(command)
       if self._cur_clip is not None:
         self._handler.trim_clip(self._root, self._cur_preset, self._cur_clip)
-        self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
+        self.play_current_clip()
     elif command['command'] == 'trimall':
       self._handler.trim_all(self._root, self._cur_preset)
     elif command['command'] == 'mono':
       self._cur_clip = self._choose_clip(command)
       if self._cur_clip is not None:
         self._handler.clip_to_mono(self._root, self._cur_preset, self._cur_clip)
-        self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
+        self.play_current_clip()
     elif command['command'] == 'undo':
       self._cur_clip = self._choose_clip(command)
       if self._cur_clip is not None:
         self._handler.undo_clip(self._root, self._cur_preset, self._cur_clip)
-        self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
+        self.play_current_clip()
     else:
       self.help()
 
-    self._handler.list_preset(self._root, self._cur_preset, self._cur_clip)
+    self.show_current_preset()
 
     return True
 
@@ -303,6 +307,31 @@ class Prompt(object):
       xmls.append(os.path.splitext(os.path.basename(f))[0])
     return xmls
 
+  def play_current_clip(self):
+    try:
+      self._handler.play_clip(self._root, self._cur_preset, self._cur_clip)
+    except handlers.NoClipError:
+      print ('No clip at that position')
+    except handlers.FileNotFound as e:
+      print ('File not found: %s' % e.filename)
+      print ('(Case sensitive issue?  Try fix)')
+      return
+
+  def show_current_preset(self):
+    """Lists clips in given preset"""
+    clips = self._handler.get_clips_filenames(self._root, self._cur_preset)
+    print ('')
+    print ('Preset %s:' % self._cur_preset)
+    for tracknum in range(0, 4):
+      for clipnum in range(0, 4):
+        if (self._cur_clip is not None and
+            tracknum == self._cur_clip['track'] and
+            clipnum == self._cur_clip['clip']):
+          print ('*', end='')
+        else:
+          print (' ', end='')
+        print ('%d,%d: %s' % (tracknum, clipnum, clips[tracknum][clipnum]))
+
   def export_v1(self):
     for i, f in enumerate(sorted(glob.glob(os.path.join(self._root, '*.xml')))[:12]):
       oldpath = os.path.join(self._root, f)
@@ -341,8 +370,19 @@ class Prompt(object):
       return None
 
     new_name = command['arg']
-    if self._handler.move_preset(self._root, self._cur_preset, new_name):
+    try:
+      self._handler.move_preset(self._root, self._cur_preset, new_name)
       self._cur_preset = new_name
+    except handlers.NoClipError:
+      print ('No clip at that position')
+    except handlers.FileNotFound as e:
+      print ('Source file does not exist: %s' % e.filename)
+    except handlers.FileAlreadyExists as e:
+      print ('Destination file already exists: %s' % e.filename)
+    except handlers.MkdirError as e:
+      print ('Error creating dir for %s: %s' % (e.path, e.err))
+    except handlers.FileMoveError as e:
+      print ('Error moving file: %s' % e.err)
 
   def _choose_clip(self, command):
     """Set the currently chosen clip as long as there is one at this position
@@ -389,7 +429,10 @@ class Prompt(object):
       return
 
     correctname = command['arg']
-    self._handler.repoint_clip(self._root, self._cur_preset, self._cur_clip, correctname)
+    try:
+      self._handler.repoint_clip(self._root, self._cur_preset, self._cur_clip, correctname)
+    except handlers.FileNotFound as e:
+      print ('New filename does not exist, repoint failed: %s' % e.filename)
 
   def handle_rename(self, command):
     """Rename clip filename on disk.
@@ -412,7 +455,18 @@ class Prompt(object):
       return
 
     newname = command['arg']
-    self._handler.move_clip(self._root, self._cur_preset, self._cur_clip, newname)
+    try:
+      self._handler.move_clip(self._root, self._cur_preset, self._cur_clip, newname)
+    except handlers.NoClipError:
+      print ('No clip at that position')
+    except handlers.FileNotFound as e:
+      print ('Source file does not exist: %s' % e.filename)
+    except handlers.FileAlreadyExists as e:
+      print ('Destination file already exists: %s' % e.filename)
+    except handlers.MkdirError as e:
+      print ('Error creating dir for %s: %s' % (e.path, e.err))
+    except handlers.FileMoveError as e:
+      print ('Error moving file: %s' % e.err)
 
   def handle_swap(self, command):
     def print_error():

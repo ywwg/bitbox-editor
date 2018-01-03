@@ -10,6 +10,33 @@ import xml.sax
 import bbeditor.bbxml as bbxml
 import bbeditor.effects as effects
 
+class Error(Exception):
+  """Base class for exceptions in this module."""
+  pass
+
+class NoClipError(Error):
+  pass
+
+class FileNotFound(Error):
+  def __init__(self, filename):
+    self.filename = filename
+
+class FileAlreadyExists(Error):
+  def __init__(self, filename):
+    self.filename = filename
+
+class MkdirError(Error):
+  def __init__(self, path, err):
+    self.path = path
+    self.err = err
+
+class FileMoveError(Error):
+  def __init__(self, err):
+    self.err = err
+
+class InvalidCoordinates(Error):
+  pass
+
 class Handler(object):
   def __init__(self):
     pass
@@ -31,19 +58,6 @@ class Handler(object):
         files[i][j] = clips[i][j]['filename']
     return files
 
-  def list_preset(self, root, preset_name, coords):
-    """Lists clips in given preset"""
-    clips = self.get_clips_filenames(root, preset_name)
-    print ('')
-    print ('Preset %s:' % preset_name)
-    for tracknum in range(0, 4):
-      for clipnum in range(0, 4):
-        if coords is not None and tracknum == coords['track'] and clipnum == coords['clip']:
-          print ('*', end='')
-        else:
-          print (' ', end='')
-        print ('%d,%d: %s' % (tracknum, clipnum, clips[tracknum][clipnum]))
-
   def get_clip(self, root, preset_name, coords):
     """Gets the encoded clip name, which is a bad windows-style relative path.
 
@@ -54,17 +68,19 @@ class Handler(object):
     return clip_filename
 
   def play_clip(self, root, preset_name, coords):
-    """Parses text and plays the given clip"""
+    """Parses text and plays the given clip
+
+    Raises:
+      NoClipError
+      FileNotFound
+    """
     clipname = self.get_clip(root, preset_name, coords)
     if not clipname:
-      print ('No clip at that position')
-      return
+      raise NoClipError
 
     filename = self._format_clip_filename(root, clipname)
     if not os.path.isfile(filename):
-      print ('File not found: %s' % filename)
-      print ('(Case sensitive issue?  Try fix)')
-      return
+      raise FileNotFound(filename)
 
     effector = effects.Effector(filename)
     effector.play()
@@ -83,45 +99,54 @@ class Handler(object):
     return os.path.isfile(path)
 
   def _move_file(self, root, oldname, newname):
+    """Moves a file, creating parent directories if necessary.
+
+    Will not overwrite existing files.
+
+    Raises:
+      FileNotFound
+      FileAlreadyExists
+      MkdirError
+      FileMoveError
+    """
     if not self._file_exists(root, oldname):
-      print ('Source file does not exist: %s' % oldname)
-      return False
+      raise FileNotFound(oldname)
 
     newpath = self._format_clip_filename(root, newname)
     if self._file_exists(root, newpath):
-      print ('Destination file already exists: %s' % newpath)
-      return False
+      raise FileAlreadyExists(newpath)
 
     if not os.path.isdir(os.path.dirname(newpath)):
       p = pathlib.Path(os.path.dirname(newpath))
       try:
         p.mkdir(parents=True)
       except Exception as e:
-        print ('Error creating dir for %s: %s' % (newpath, e))
-        return False
+        raise MkdirError(newpath, e)
 
     oldpath = self._format_clip_filename(root, oldname)
     try:
       shutil.move(oldpath, newpath)
     except Exception as e:
-      print ('Error moving file: %s' % e)
-      return False
+      raise FileMoveError(e)
     return True
 
   def move_clip(self, root, preset_name, coords, newname):
-    """Move file for a clip on disk and update XML to match."""
+    """Move file for a clip on disk and update XML to match.
+
+    Raises:
+      NoClipError
+      Everything that _move_file raises
+    """
     clip_filename = self.get_clip(root, preset_name, coords)
     if not clip_filename:
-      print ('No clip at that position')
-      return
+      raise NoClipError
 
     self._backup_preset(root, preset_name)
 
     preset_filename = self._preset_filename(root, preset_name)
     backup_filename = os.path.splitext(preset_filename)[0] + '.bak'
 
-    if not self._move_file(root, clip_filename, newname):
-      return
+    self._move_file(root, clip_filename, newname)
 
     parser = xml.sax.make_parser()
     with open(preset_filename, 'w') as out:
@@ -131,17 +156,20 @@ class Handler(object):
   def move_preset(self, root, preset_name, newname):
     preset_filename = self._preset_filename(root, preset_name)
     new_filename = self._preset_filename(root, newname)
-    return self._move_file(root, preset_filename, new_filename)
+    self._move_file(root, preset_filename, new_filename)
 
   def repoint_clip(self, root, preset_name, coords, newname):
     """Just repoint the file in the xml, don't move anything.
 
-    Doesn't check for old filename in case it was wrong (case problem)"""
+    Doesn't check for old filename in case it was wrong (case problem)
+
+    Raises:
+      FileNotFound
+    """
     if newname:
       # Only check for path existence if not blank
       if not self._file_exists(root, newname):
-        print ('New filename does not exist, repoint failed: %s' % newname)
-        return
+        raise FileNotFound(newname)
     self._backup_preset(root, preset_name)
 
     preset_filename = self._preset_filename(root, preset_name)

@@ -109,3 +109,11 @@ Deps (pipable):
 * pydub
 
 Of course deps have deps too!
+
+## Running Tests
+
+I have a small number of tests, mostly for the commandline parsing.
+
+```
+PYTHONPATH="." python3 ./bbeditor/prompt_test.py
+```
