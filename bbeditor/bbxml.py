@@ -125,7 +125,7 @@ class BBXMLOverwrite(BBXML):
         for k in self._clipdata:
           if k == 'slices':
             continue
-          new_attrs[k] = self._clipdata[k]
+          new_attrs[k] = str(self._clipdata[k])
         self._output.startElement(name, new_attrs)
         self._output.characters('\n                ')
         self._output.startElement('slices', {})

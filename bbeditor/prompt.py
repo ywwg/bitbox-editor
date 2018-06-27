@@ -9,6 +9,7 @@ Gets tricky with swap which can take one or two sets of coords
 It also looks like state belongs in the handler, not here.
 
 """
+import fnmatch
 import glob
 import os.path
 import re
@@ -62,6 +63,8 @@ class BBCompleter(Completer):
 
 
 class Prompt(object):
+  XML_MATCHER = re.compile(fnmatch.translate('*.xml'), re.IGNORECASE)
+
   def __init__(self, herstory_file):
     self._herstory = FileHistory(herstory_file)
     self._handler = handlers.Handler()
@@ -303,8 +306,9 @@ class Prompt(object):
   def list_presets(self):
     """Return all the files in the root with .xml extensions"""
     xmls = []
-    for f in sorted(glob.glob(os.path.join(self._root, '*.xml'))):
-      xmls.append(os.path.splitext(os.path.basename(f))[0])
+    for f in os.listdir(self._root):
+      if self.XML_MATCHER.match(f):
+        xmls.append(os.path.splitext(os.path.basename(f))[0])
     return xmls
 
   def play_current_clip(self):
@@ -333,7 +337,9 @@ class Prompt(object):
         print ('%d,%d: %s' % (tracknum, clipnum, clips[tracknum][clipnum]))
 
   def export_v1(self):
-    for i, f in enumerate(sorted(glob.glob(os.path.join(self._root, '*.xml')))[:12]):
+    xmls = [f for f in os.listdir(self._root) if self.XML_MATCHER.match(f)]
+    for i, f in enumerate(sorted(xmls)[:12]):
+      print ("exporting" + f)
       oldpath = os.path.join(self._root, f)
       newpath = os.path.join(self._root, 'SE%06d.XML' % (i + 1))
       print ('Copying %s to %s' % (oldpath, newpath))
